@@ -12,6 +12,10 @@ This project provides an elegant solution to remotely upload firmware to ESP8266
 -MQTT (Mosquitto broker)  
 -HTML + JavaScript (MQTT.js over WebSocket)  
 -OTA Update via `ESPhttpUpdate`
+## Dashboard Preview  
+![OTA Dashboard Screenshot](preview.png)
+
+
 
 
 
