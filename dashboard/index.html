@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ESP8266 OTA Update Dashboard</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f8fb;
+      margin: 0; padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+    .container {
+      background: #ffffff;
+      padding: 30px 40px;
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 700px;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 30px;
+    }
+    form, .section { margin-bottom: 25px; }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    input[type="file"], input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      margin-bottom: 15px;
+    }
+    button {
+      background: green;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: 0.3s ease;
+      width: 130px;
+    }
+    button:hover { background: #2980b9; }
+    .log {
+      background: #ecf0f1;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      margin-top: 10px;
+    }
+    .center { text-align: center; }
+    .footer {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>ESP8266 OTA Update Dashboard</h1>
+
+  <!-- Firmware Upload -->
+  <div class="section">
+    <h3>1. Upload Firmware (.bin)</h3>
+    <form id="uploadForm">
+      <input type="file" name="firmware" id="firmware" required />
+      <div class="center">
+        <button type="submit">Upload</button>
+      </div>
+    </form>
+    <div id="uploadResult" class="log"></div>
+  </div>
+
+  <!-- OTA Trigger -->
+  <div class="section">
+    <h3>2. Enter Target MQTT Topic & Trigger OTA</h3>
+    <label for="topicInput">MQTT Topic (e.g. <code>esp/update/device1</code>):</label>
+    <input type="text" id="topicInput" placeholder="esp/update/device1" required />
+    <div class="center">
+      <button onclick="triggerUpdate()">Trigger OTA</button>
+    </div>
+    <div id="triggerResult" class="log"></div>
+  </div>
+
+  <!-- Live OTA Logs -->
+  <div class="section">
+    <h3>3. Live OTA Logs from ESP</h3>
+    <div id="otaLogs" class="log"></div>
+  </div>
+
+  <div class="footer center">© 2025 OTA Dashboard</div>
+</div>
+
+<script>
+  function showMessageTemporarily(id, message) {
+    const el = document.getElementById(id);
+    el.textContent = message;
+    setTimeout(() => el.textContent = "", 5000);
+  }
+
+  // Upload firmware
+  document.getElementById("uploadForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+    const file = document.getElementById("firmware").files[0];
+    if (!file || !file.name.endsWith(".bin")) {
+      alert("Please select a valid .bin firmware file.");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("firmware", file);
+
+    fetch("upload.php", {
+      method: "POST",
+      body: formData
+    })
+    .then(res => res.text())
+    .then(data => showMessageTemporarily("uploadResult", data))
+    .catch(err => showMessageTemporarily("uploadResult", "Error: " + err));
+  });
+
+  // Trigger OTA
+  function triggerUpdate() {
+    const file = document.getElementById("firmware").files[0];
+    const topic = document.getElementById("topicInput").value.trim();
+    if (!file || !file.name.endsWith(".bin")) {
+      alert("Please select a valid .bin firmware file.");
+      return;
+    }
+    if (!topic || !topic.startsWith("esp/update/")) {
+      alert("Topic must start with 'esp/update/'");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("filename", file.name);
+    formData.append("topic", topic);
+
+    fetch("trigger.php", {
+      method: "POST",
+      body: formData
+    })
+    .then(res => res.text())
+    .then(data => showMessageTemporarily("triggerResult", data))
+    .catch(err => showMessageTemporarily("triggerResult", "Error: " + err));
+  }
+
+  // MQTT Logs via WebSocket
+  const client = mqtt.connect("ws://192.168.0.107:9001");
+  client.on("connect", () => {
+    console.log("?? Connected to MQTT broker via WebSocket");
+    client.subscribe("esp/logs");
+  });
+  client.on("message", (topic, message) => {
+    if (topic === "esp/logs") {
+      const logDiv = document.getElementById("otaLogs");
+      logDiv.textContent += message.toString() + "\n";
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+  });
+</script>
+
+</body>
+</html>
